@@ -1,0 +1,57 @@
+syntax = "proto3";
+package training;
+option go_package = "training/proto;trainingpb";
+
+service Training {
+  rpc SubmitJob(JobConfig) returns (Job);
+  rpc SubmitGridSearch(Grid) returns (Jobs);
+  rpc GetJobStatus(JobRef) returns (Job);
+  rpc RegisterWorker(Worker) returns (Empty);
+  rpc Heartbeat(Worker) returns (Empty);
+  rpc RequestJob(Pull) returns (Job);
+  rpc ReportProgress(Update) returns (Empty);
+  rpc CompleteJob(Update) returns (Empty);
+  rpc StreamEvents(Empty) returns (stream Event);
+}
+message Empty {}
+message JobConfig {
+  string model_type = 1;
+  map<string, string> hyperparameters = 2; // Each value is JSON.
+  string data_version = 3;
+  uint32 seed = 4;
+}
+message Values { repeated string json = 1; }
+message Grid { JobConfig base = 1; map<string, Values> axes = 2; }
+message Jobs { repeated Job jobs = 1; }
+message JobRef { string job_id = 1; }
+enum State { PENDING = 0; RUNNING = 1; COMPLETED = 2; FAILED = 3; REASSIGNED = 4; }
+message Job {
+  string job_id = 1;
+  JobConfig config = 2;
+  State state = 3;
+  uint32 epoch = 4;
+  double progress = 5;
+  string metrics_json = 6;
+  string model_path = 7;
+  string worker_id = 8;
+  uint64 attempt = 9;
+  int64 deadline_unix_ms = 10;
+  string error = 11;
+}
+message Worker { string worker_id = 1; }
+message Pull {
+  string worker_id = 1;
+  repeated string model_types = 2;
+  string request_id = 3;
+}
+message Update {
+  string worker_id = 1;
+  string job_id = 2;
+  uint64 attempt = 3;
+  uint32 epoch = 4;
+  double progress = 5;
+  string metrics_json = 6;
+  string model_path = 7;
+  string error = 8;
+}
+message Event { string kind = 1; Job job = 2; string worker_id = 3; }

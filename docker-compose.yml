@@ -1,0 +1,38 @@
+services:
+  coordinator:
+    image: training-coordinator:phase1
+    build:
+      context: .
+      dockerfile: DockerFile
+    environment:
+      QUEUE_PATH: /state/queue.json
+    volumes:
+      - queue:/state
+    ports:
+      - "127.0.0.1:50051:50051"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+
+  worker:
+    image: training-worker:phase1
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    depends_on:
+      coordinator:
+        condition: service_healthy
+    volumes:
+      - ./data/processed:/shared/data:ro
+      - checkpoints:/shared/checkpoints
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+
+volumes:
+  queue:
+  checkpoints:

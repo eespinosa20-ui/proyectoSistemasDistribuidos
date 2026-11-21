@@ -1,0 +1,6 @@
+.git
+.venv
+.phase1-tools
+data
+shared
+**/__pycache__
