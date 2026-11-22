@@ -20,11 +20,25 @@ message JobConfig {
   string data_version = 3;
   uint32 seed = 4;
 }
-message Values { repeated string json = 1; }
-message Grid { JobConfig base = 1; map<string, Values> axes = 2; }
-message Jobs { repeated Job jobs = 1; }
-message JobRef { string job_id = 1; }
-enum State { PENDING = 0; RUNNING = 1; COMPLETED = 2; FAILED = 3; REASSIGNED = 4; }
+message Values { 
+  repeated string json = 1; 
+}
+message Grid { 
+  JobConfig base = 1;
+  map<string, Values> axes = 2; 
+}
+message Jobs { 
+  repeated Job jobs = 1; 
+}
+message JobRef { 
+  string job_id = 1; 
+}
+enum State { 
+  PENDING = 0; RUNNING = 1;
+  COMPLETED = 2; 
+  FAILED = 3; 
+  REASSIGNED = 4; 
+}
 message Job {
   string job_id = 1;
   JobConfig config = 2;
@@ -38,7 +52,9 @@ message Job {
   int64 deadline_unix_ms = 10;
   string error = 11;
 }
-message Worker { string worker_id = 1; }
+message Worker { 
+  string worker_id = 1;
+}
 message Pull {
   string worker_id = 1;
   repeated string model_types = 2;
@@ -54,4 +70,8 @@ message Update {
   string model_path = 7;
   string error = 8;
 }
-message Event { string kind = 1; Job job = 2; string worker_id = 3; }
+message Event { 
+  string kind = 1;
+  Job job = 2; 
+  string worker_id = 3; 
+}

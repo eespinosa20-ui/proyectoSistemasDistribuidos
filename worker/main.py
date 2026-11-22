@@ -1,5 +1,6 @@
 import json
 import logging
+import math
 import os
 import random
 import socket
@@ -47,9 +48,26 @@ def execute():
     with grpc.insecure_channel(ADDRESS) as channel:
         stub = rpc.TrainingStub(channel)
 
-        def progress(epoch, fraction):
-            retry(stub.ReportProgress, pb.Update(**assignment, epoch=epoch, progress=fraction))
+        loss_sum = 0.0
+        samples = 0
 
+        def record_loss(module, inputs, output):
+            nonlocal loss_sum, samples
+            if isinstance(module, (torch.nn.MSELoss, torch.nn.CrossEntropyLoss)):
+                batch_size = inputs[0].shape[0]
+                loss_sum += output.detach().item() * batch_size
+                samples += batch_size
+
+        def progress(epoch, fraction):
+            nonlocal loss_sum, samples
+            average = loss_sum / samples if samples else None
+            metrics = json.dumps({"loss": average}) if average is not None and math.isfinite(average) else ""
+            retry(stub.ReportProgress, pb.Update(**assignment, epoch=epoch, progress=fraction,
+                                                  metrics_json=metrics))
+            loss_sum = 0.0
+            samples = 0
+
+        hook = torch.nn.modules.module.register_module_forward_hook(record_loss)
         try:
             result = pipelines[job.config.model_type].run(config, DATA, CHECKPOINTS, progress)
             update = pb.Update(**assignment, metrics_json=json.dumps(result["metrics"]),
@@ -59,6 +77,8 @@ def execute():
         except Exception as error:
             LOG.exception("Job %s failed", job.job_id)
             update = pb.Update(**assignment, error=f"{type(error).__name__}: {error}")
+        finally:
+            hook.remove()
         retry(stub.CompleteJob, update)
 
 
