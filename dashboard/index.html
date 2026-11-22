@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Entrenamiento distribuido</title>
+<style>
+  :root { color-scheme: dark; font: 16px system-ui, sans-serif; background: #10171d; color: #e6eef3; }
+  body { margin: 0 auto; padding: 2rem 1rem; max-width: 76rem; }
+  header { display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; gap: .5rem; }
+  h1 { margin: 0; font-size: clamp(1.5rem, 5vw, 2.5rem); }
+  #connection, th { color: #afc3d1; }
+  #counts { display: grid; grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr)); gap: .75rem; }
+  article, .table { background: #18232c; border: 1px solid #304251; border-radius: .6rem; }
+  article { padding: .75rem; }
+  strong { display: block; margin-top: .25rem; font-size: 1.7rem; }
+  .table { overflow-x: auto; }
+  table { text-align: left; border-collapse: collapse; width: 100%; }
+  th, td { border-bottom: 1px solid #304251; padding: .75rem; vertical-align: top; }
+  td { overflow-wrap: anywhere; }
+  pre { white-space: pre-wrap; margin: 0; }
+  progress { display: block; width: 5rem; accent-color: #62deb1; }
+  .ALIVE, .COMPLETED { color: #62deb1; }
+  .DEAD, .FAILED { color: #ffad9f; }
+</style>
+</head>
+<body>
+<header><h1>Entrenamiento distribuido</h1><span id="connection" role="status">Conectando…</span></header>
+<section aria-labelledby="jobs-count"><h2 id="jobs-count">Cola de trabajos</h2><div id="counts"></div></section>
+<section>
+  <h2>Workers</h2>
+  <div class="table"><table><thead><tr><th>Nodo</th><th>Estado</th><th>Trabajos activos</th></tr></thead>
+  <tbody id="workers"></tbody></table></div>
+</section>
+<section>
+  <h2>Trabajos</h2>
+  <div class="table"><table><thead><tr><th>ID</th><th>Modelo</th><th>Estado</th><th>Progreso</th><th>Época</th><th>Loss</th><th>Métricas finales</th></tr></thead>
+  <tbody id="jobs"></tbody></table></div>
+</section>
+<script>
+  const connection = document.querySelector('#connection');
+  const counts = document.querySelector('#counts');
+  const workers = document.querySelector('#workers');
+  const jobs = document.querySelector('#jobs');
+
+  function element(tag, value, className = '') {
+    const node = document.createElement(tag);
+    node.textContent = value;
+    node.className = className;
+    return node;
+  }
+
+  function row(...cells) {
+    const node = document.createElement('tr');
+    node.append(...cells.map(cell => cell instanceof Node ? cell : element('td', cell)));
+    return node;
+  }
+
+  const events = new EventSource('/events');
+  events.onerror = () => { connection.textContent = 'Reconectando con el dashboard…'; };
+  events.onmessage = ({data}) => {
+    const snapshot = JSON.parse(data);
+    connection.textContent = snapshot.connected ? 'Coordinador conectado' : 'Reconectando con el coordinador…';
+    counts.replaceChildren(...Object.entries(snapshot.counts).map(([name, count]) => {
+      const card = element('article', name);
+      card.append(element('strong', count));
+      return card;
+    }));
+    workers.replaceChildren(...snapshot.workers.map(worker =>
+      row(worker.id, element('td', worker.state, worker.state), worker.jobs.join(', ') || '—')
+    ));
+    jobs.replaceChildren(...snapshot.jobs.map(job => {
+      const cell = element('td', Math.round(job.progress * 100) + '%');
+      const bar = document.createElement('progress');
+      bar.max = 1;
+      bar.value = job.progress;
+      bar.setAttribute('aria-label', 'Progreso de ' + job.job_id);
+      cell.append(bar);
+      const metrics = element('td', '');
+      if (job.state === 'COMPLETED' && job.metrics) {
+        metrics.append(element('pre', JSON.stringify(job.metrics, null, 2)));
+      } else {
+        metrics.textContent = job.error || '—';
+      }
+      const loss = job.metrics?.loss;
+      return row(job.job_id, job.model, element('td', job.state, job.state), cell, job.epoch,
+        typeof loss === 'number' ? loss.toPrecision(5) : '—', metrics);
+    }));
+  };
+</script>
+</body>
+</html>
+

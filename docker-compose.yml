@@ -1,0 +1,60 @@
+services:
+  coordinator:
+    image: training-coordinator:phase1
+    build:
+      context: .
+      dockerfile: coordinator/Dockerfile
+    environment:
+      QUEUE_PATH: /state/queue.json
+    volumes:
+      - queue:/state
+    ports:
+      - "127.0.0.1:50051:50051"
+    healthcheck:
+      test: ["CMD", "python", "main.py", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 256M
+
+  worker:
+    image: training-worker:phase1
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    depends_on:
+      coordinator:
+        condition: service_healthy
+    restart: on-failure
+    volumes:
+      - ./data/processed:/shared/data:ro
+      - checkpoints:/shared/checkpoints
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 4G
+
+  dashboard:
+    image: training-dashboard:phase1
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    environment:
+      COORDINATOR: coordinator:50051
+    ports:
+      - "127.0.0.1:8080:8080"
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 128M
+
+volumes:
+  queue:
+  checkpoints:
